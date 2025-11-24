@@ -355,8 +355,11 @@ try:
             </div>
         """, unsafe_allow_html=True)
     
-    # Métricas adicionais interessantes
-    st.header("📈 Métricas Adicionais")
+    # =============================================================================
+    # MÉTRICAS AVANÇADAS - NOVAS
+    # =============================================================================
+    
+    st.header("📈 Métricas Avançadas")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -373,7 +376,7 @@ try:
         st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #4ECDC4, #1FA39C);">
                 <h3>{viagens_por_servidor:.1f}</h3>
-                <p>Viagens por Servidor</p>
+                <p>Média de Viagens/Servidor</p>
             </div>
         """, unsafe_allow_html=True)
     
@@ -391,12 +394,96 @@ try:
         st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #A8E6CF, #56CCF2);">
                 <h3>{duracao_total:.0f}</h3>
-                <p>Total de Dias de Afastamento</p>
+                <p>Total de Dias Afastados</p>
             </div>
         """, unsafe_allow_html=True)
     
+    # Segunda linha de métricas avançadas
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        duracao_min = df_filtrado['Duração (dias)'].min()
+        duracao_max = df_filtrado['Duração (dias)'].max()
+        st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #667EEA, #764BA2);">
+                <h3>{duracao_min:.0f}-{duracao_max:.0f}</h3>
+                <p>Duração Mín-Máx (dias)</p>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        antecedencia_min = df_filtrado['Antecedência (dias)'].min()
+        antecedencia_max = df_filtrado['Antecedência (dias)'].max()
+        st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #F093FB, #F5576C);">
+                <h3>{antecedencia_min:.0f}-{antecedencia_max:.0f}</h3>
+                <p>Antecedência Mín-Máx (dias)</p>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        total_diretorias = df_filtrado['Diretoria'].nunique()
+        st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #4FACFE, #00F2FE);">
+                <h3>{total_diretorias}</h3>
+                <p>Diretorias Envolvidas</p>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        viagens_brasil = len(df_filtrado[df_filtrado['País'].str.contains('Brasil', case=False, na=False)])
+        viagens_exterior = total_viagens - viagens_brasil
+        st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #FA8BFF, #2BD2FF);">
+                <h3>{viagens_exterior}/{total_viagens}</h3>
+                <p>Viagens Exterior/Total</p>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Terceira linha - Métricas de custo (se disponível)
+    if 'Custo' in df_filtrado.columns and custo_total > 0:
+        st.header("💰 Análise de Custo")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        custo_por_viagem = custo_total / total_viagens if total_viagens > 0 else 0
+        custo_por_servidor = custo_total / total_servidores if total_servidores > 0 else 0
+        custo_por_dia = custo_total / duracao_total if duracao_total > 0 else 0
+        
+        with col1:
+            st.markdown(f"""
+                <div class="metric-card" style="background: linear-gradient(135deg, #11998E, #38EF7D);">
+                    <h3>R$ {custo_total:,.0f}</h3>
+                    <p>Custo Total</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+                <div class="metric-card" style="background: linear-gradient(135deg, #EB3349, #F45C43);">
+                    <h3>R$ {custo_por_viagem:,.0f}</h3>
+                    <p>Custo/Viagem</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+                <div class="metric-card" style="background: linear-gradient(135deg, #4158D0, #C850C0);">
+                    <h3>R$ {custo_por_servidor:,.0f}</h3>
+                    <p>Custo/Servidor</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown(f"""
+                <div class="metric-card" style="background: linear-gradient(135deg, #0093E9, #80D0C7);">
+                    <h3>R$ {custo_por_dia:,.0f}</h3>
+                    <p>Custo/Dia</p>
+                </div>
+            """, unsafe_allow_html=True)
+    
     # =============================================================================
-    # MAPA MUNDI COM CHOROPLETH - CORRIGIDO
+    # MAPA MUNDI COM CHOROPLETH - CORRIGIDO COM FUNDO BRANCO
     # =============================================================================
     
     st.header("🗺️ Mapa Mundi - Países Visitados")
@@ -429,7 +516,7 @@ try:
                     showframe=True,
                     showcoastlines=True,
                     projection_type='natural earth',
-                    bgcolor='rgba(200, 220, 240, 0.3)'
+                    bgcolor='rgba(255, 255, 255, 1)'  # ✅ FUNDO BRANCO
                 ),
                 height=600,
                 hovermode='closest',
@@ -532,39 +619,54 @@ try:
     
     st.header("📈 Análise Temporal")
     
+    if not viagens_por_mes.empty:
+        fig_mes = px.bar(
+            viagens_por_mes, 
+            x='Mês_Início', 
+            y='Viagens',
+            title='Viagens por Mês (mês de início)',
+            color='Viagens',
+            color_continuous_scale='Viridis'
+        )
+        st.plotly_chart(fig_mes, use_container_width=True)
+    else:
+        st.info("Não há dados para o gráfico mensal")
+    
+    # =============================================================================
+    # ANÁLISE POR DIRETORIA
+    # =============================================================================
+    
+    st.header("🏢 Análise por Diretoria")
+    
     col1, col2 = st.columns(2)
     
     with col1:
-        # Gráfico de viagens por mês
-        if not viagens_por_mes.empty:
-            fig_mes = px.bar(
-                viagens_por_mes, 
-                x='Mês_Início', 
-                y='Viagens',
-                title='Viagens por Mês (mês de início)',
-                color='Viagens',
-                color_continuous_scale='Viridis'
-            )
-            st.plotly_chart(fig_mes, use_container_width=True)
-        else:
-            st.info("Não há dados para o gráfico mensal")
+        viagens_diretoria = df_filtrado['Diretoria'].value_counts().reset_index()
+        viagens_diretoria.columns = ['Diretoria', 'Viagens']
+        
+        fig_diretoria = px.bar(
+            viagens_diretoria,
+            x='Diretoria',
+            y='Viagens',
+            title='Distribuição de Viagens por Diretoria',
+            color='Viagens',
+            color_continuous_scale='Blues'
+        )
+        st.plotly_chart(fig_diretoria, use_container_width=True)
     
     with col2:
-        # Viagens por trimestre
-        viagens_trimestre = df_filtrado.groupby('Trimestre').size().reset_index(name='Viagens')
-        if not viagens_trimestre.empty:
-            fig_trimestre = px.line(
-                viagens_trimestre,
-                x='Trimestre',
-                y='Viagens',
-                title='Viagens por Trimestre',
-                markers=True,
-                line_shape='spline'
-            )
-            fig_trimestre.update_traces(line=dict(color=CORES_IBAMA[0], width=3))
-            st.plotly_chart(fig_trimestre, use_container_width=True)
-        else:
-            st.info("Não há dados por trimestre")
+        duracao_diretoria = df_filtrado.groupby('Diretoria')['Duração (dias)'].mean().sort_values(ascending=False).reset_index()
+        duracao_diretoria.columns = ['Diretoria', 'Duração Média']
+        
+        fig_dur_dir = px.bar(
+            duracao_diretoria,
+            x='Diretoria',
+            y='Duração Média',
+            title='Duração Média de Afastamento por Diretoria',
+            color='Duração Média',
+            color_continuous_scale='Oranges'
+        )
+        st.plotly_chart(fig_dur_dir, use_container_width=True)
     
     # =============================================================================
     # ANÁLISE DE GÊNERO E RANKINGS
