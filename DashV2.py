@@ -660,4 +660,4 @@ try:
             <b>🚨 Achado Crítico:</b> Mulheres recebem <b>{'MENOS' if diff_pct > 0 else 'MAIS'} R$ {abs(diff_pct):.1f}%</b> em orçamento médio de viagem.
             <br>💡 Questão para investigação: É uma diferença de especialização ou de oportunidade desigual?
             </div>
-        """, unsafe_allow_
+        """, unsafe_allow_html=True)
