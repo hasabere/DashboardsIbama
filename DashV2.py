@@ -33,6 +33,14 @@ st.markdown("""
         color: white;
         text-align: center;
     }
+    .insight-box {
+        background: linear-gradient(135deg, #F093FB, #F5576C);
+        padding: 1.5rem;
+        border-radius: 10px;
+        color: white;
+        margin: 1rem 0;
+        border-left: 5px solid #FF4757;
+    }
     </style>
     <h1 class="main-header">🌍 Dashboard de Afastamentos 2025 - IBAMA</h1>
 """, unsafe_allow_html=True)
@@ -186,25 +194,24 @@ try:
     if 'Custo' in df.columns:
         df['Custo'] = pd.to_numeric(df['Custo'], errors='coerce')
     
+    # Indicadores de planejamento
+    df['Bem_Planejado'] = df['Antecedência (dias)'] >= 30
+    
     # =============================================================================
-    # PROCESSAMENTO DE PAÍSES - VERSÃO NOVA E ROBUSTA
+    # PROCESSAMENTO DE PAÍSES
     # =============================================================================
     
-    # Limpeza inicial de países
     df['País'] = df['País'].astype(str).str.strip()
     
-    # Mapeamento direto - aplicar com case-insensitive
     def mapear_pais(pais_input):
         if pd.isna(pais_input) or str(pais_input).lower() in ['nan', 'none', 'null', '']:
             return None
         
         pais_input_str = str(pais_input).strip()
         
-        # Busca exata primeiro
         if pais_input_str in COUNTRY_MAPPING:
             return COUNTRY_MAPPING[pais_input_str]
         
-        # Busca case-insensitive
         for pais_pt, pais_en in COUNTRY_MAPPING.items():
             if pais_pt.lower() == pais_input_str.lower():
                 return pais_en
@@ -212,20 +219,6 @@ try:
         return None
     
     df['País_Inglês'] = df['País'].apply(mapear_pais)
-    
-    # Guardar país original em português para referência
-    df['País_PT'] = df['País'].apply(
-        lambda x: next((k for k, v in COUNTRY_MAPPING.items() if v == df[df['País'] == x]['País_Inglês'].iloc[0] if pd.notna(df[df['País'] == x]['País_Inglês'].iloc[0])), None) 
-        if pd.notna(x) else None
-    )
-    
-    # Preenchimento alternativo
-    for idx, row in df.iterrows():
-        if pd.isna(df.loc[idx, 'País_PT']) and pd.notna(df.loc[idx, 'País_Inglês']):
-            for k, v in COUNTRY_MAPPING.items():
-                if v == df.loc[idx, 'País_Inglês']:
-                    df.loc[idx, 'País_PT'] = k
-                    break
     
     if debug_mode:
         st.sidebar.write("🔍 Debug - Países em inglês únicos:", sorted(df['País_Inglês'].dropna().unique()))
@@ -241,7 +234,6 @@ try:
     df['Mês_Início'] = df['Início do Afastamento'].dt.month_name()
     df['Trimestre'] = 'T' + df['Início do Afastamento'].dt.quarter.astype(str)
     
-    # Ordem dos meses
     meses_ordem = ['January', 'February', 'March', 'April', 'May', 'June', 
                    'July', 'August', 'September', 'October', 'November', 'December']
     
@@ -251,7 +243,6 @@ try:
     
     st.sidebar.header("🔧 Filtros")
     
-    # Preparar opções para filtros
     diretorias_disponiveis = sorted([d for d in df['Diretoria'].unique() if d not in ['Não Informado', 'nan']])
     tipos_viagem_disponiveis = sorted([t for t in df['Tipo de Viagem'].unique() if t not in ['Não Informado', 'nan']])
     
@@ -265,7 +256,6 @@ try:
         options=["Todas"] + diretorias_disponiveis
     )
     
-    # Aplicar filtros
     df_filtrado = df.copy()
     
     if tipo_selecionado != 'Todos':
@@ -275,24 +265,19 @@ try:
         df_filtrado = df_filtrado[df_filtrado['Diretoria'] == diretoria_selecionada]
     
     # =============================================================================
-    # AGREGAÇÕES PARA OS MAPAS - NOVA ABORDAGEM
+    # AGREGAÇÕES PARA OS MAPAS
     # =============================================================================
     
-    # Filtrar apenas linhas com país válido (mapeado com sucesso)
     df_com_pais = df_filtrado[df_filtrado['País_Inglês'].notna()].copy()
     
-    # Aggregação por país em inglês
     viagens_por_pais = df_com_pais.groupby('País_Inglês').agg({
         'País': 'count',
         'Servidor': 'nunique',
         'Duração (dias)': 'mean'
     }).reset_index()
     viagens_por_pais.columns = ['País', 'Total_Viagens', 'Servidores_Unicos', 'Duração_Media']
-    
-    # Adicionar código ISO para o choropleth
     viagens_por_pais['ISO_Code'] = viagens_por_pais['País'].map(ISO_MAPPING)
     
-    # Contagem de viagens por mês
     viagens_por_mes = df_filtrado.groupby('Mês_Início').size().reset_index(name='Viagens')
     viagens_por_mes['Mês_Início'] = pd.Categorical(
         viagens_por_mes['Mês_Início'], 
@@ -305,14 +290,12 @@ try:
     # MÉTRICAS PRINCIPAIS
     # =============================================================================
     
-    # Calcular métricas
     total_viagens = df_filtrado.shape[0]
     total_servidores = df_filtrado['Servidor'].nunique()
     duracao_media = df_filtrado['Duração (dias)'].mean()
     antecedencia_media = df_filtrado['Antecedência (dias)'].mean()
     total_paises = df_com_pais['País_Inglês'].nunique()
     
-    # ✅ CONVERSÃO SEGURA DE CUSTO
     custo_total = 0
     custo_medio = 0
     if 'Custo' in df_filtrado.columns:
@@ -356,12 +339,12 @@ try:
         """, unsafe_allow_html=True)
     
     # =============================================================================
-    # MÉTRICAS AVANÇADAS - NOVAS
+    # MÉTRICAS AVANÇADAS - REDUZIDAS
     # =============================================================================
     
     st.header("📈 Métricas Avançadas")
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown(f"""
@@ -372,15 +355,6 @@ try:
         """, unsafe_allow_html=True)
     
     with col2:
-        viagens_por_servidor = total_viagens / total_servidores if total_servidores > 0 else 0
-        st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #4ECDC4, #1FA39C);">
-                <h3>{viagens_por_servidor:.1f}</h3>
-                <p>Média de Viagens/Servidor</p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
         max_viagens_mes = viagens_por_mes['Viagens'].max() if not viagens_por_mes.empty else 0
         st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #FFD93D, #FF9F43);">
@@ -389,7 +363,7 @@ try:
             </div>
         """, unsafe_allow_html=True)
     
-    with col4:
+    with col3:
         duracao_total = df_filtrado['Duração (dias)'].sum()
         st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #A8E6CF, #56CCF2);">
@@ -398,57 +372,11 @@ try:
             </div>
         """, unsafe_allow_html=True)
     
-    # Segunda linha de métricas avançadas
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        duracao_min = df_filtrado['Duração (dias)'].min()
-        duracao_max = df_filtrado['Duração (dias)'].max()
-        st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #667EEA, #764BA2);">
-                <h3>{duracao_min:.0f}-{duracao_max:.0f}</h3>
-                <p>Duração Mín-Máx (dias)</p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        antecedencia_min = df_filtrado['Antecedência (dias)'].min()
-        antecedencia_max = df_filtrado['Antecedência (dias)'].max()
-        st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #F093FB, #F5576C);">
-                <h3>{antecedencia_min:.0f}-{antecedencia_max:.0f}</h3>
-                <p>Antecedência Mín-Máx (dias)</p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        total_diretorias = df_filtrado['Diretoria'].nunique()
-        st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #4FACFE, #00F2FE);">
-                <h3>{total_diretorias}</h3>
-                <p>Diretorias Envolvidas</p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        viagens_brasil = len(df_filtrado[df_filtrado['País'].str.contains('Brasil', case=False, na=False)])
-        viagens_exterior = total_viagens - viagens_brasil
-        st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #FA8BFF, #2BD2FF);">
-                <h3>{viagens_exterior}/{total_viagens}</h3>
-                <p>Viagens Exterior/Total</p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    # Terceira linha - Métricas de custo (se disponível)
+    # Segunda linha de métricas
     if 'Custo' in df_filtrado.columns and custo_total > 0:
-        st.header("💰 Análise de Custo")
-        
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
         
         custo_por_viagem = custo_total / total_viagens if total_viagens > 0 else 0
-        custo_por_servidor = custo_total / total_servidores if total_servidores > 0 else 0
-        custo_por_dia = custo_total / duracao_total if duracao_total > 0 else 0
         
         with col1:
             st.markdown(f"""
@@ -467,30 +395,22 @@ try:
             """, unsafe_allow_html=True)
         
         with col3:
+            pct_bem_planejado = (df_filtrado['Bem_Planejado'].sum() / total_viagens * 100) if total_viagens > 0 else 0
             st.markdown(f"""
                 <div class="metric-card" style="background: linear-gradient(135deg, #4158D0, #C850C0);">
-                    <h3>R$ {custo_por_servidor:,.0f}</h3>
-                    <p>Custo/Servidor</p>
-                </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            st.markdown(f"""
-                <div class="metric-card" style="background: linear-gradient(135deg, #0093E9, #80D0C7);">
-                    <h3>R$ {custo_por_dia:,.0f}</h3>
-                    <p>Custo/Dia</p>
+                    <h3>{pct_bem_planejado:.0f}%</h3>
+                    <p>Viagens Bem Planejadas (30+ dias)</p>
                 </div>
             """, unsafe_allow_html=True)
     
     # =============================================================================
-    # MAPA MUNDI COM CHOROPLETH - CORRIGIDO COM FUNDO BRANCO
+    # MAPA MUNDI
     # =============================================================================
     
     st.header("🗺️ Mapa Mundi - Países Visitados")
     
     if not viagens_por_pais.empty and not viagens_por_pais['ISO_Code'].isna().all():
         try:
-            # Criar mapa coroplético
             fig_mapa_mundi = px.choropleth(
                 viagens_por_pais,
                 locations='ISO_Code',
@@ -516,7 +436,7 @@ try:
                     showframe=True,
                     showcoastlines=True,
                     projection_type='natural earth',
-                    bgcolor='rgba(255, 255, 255, 1)'  # ✅ FUNDO BRANCO
+                    bgcolor='rgba(255, 255, 255, 1)'
                 ),
                 height=600,
                 hovermode='closest',
@@ -529,21 +449,18 @@ try:
             
             st.plotly_chart(fig_mapa_mundi, use_container_width=True)
             
-            st.info("💡 Dica: Passe o mouse sobre os países para ver detalhes das viagens, clique e arraste para rotacionar o mapa!")
-            
         except Exception as e:
             st.warning(f"⚠️ Erro ao gerar mapa mundi: {str(e)}")
     else:
         st.warning("⚠️ Não foi possível gerar o mapa mundi. Verifique os dados de países.")
     
     # =============================================================================
-    # MAPAS INTERATIVOS - ANÁLISE DETALHADA
+    # ANÁLISE DETALHADA POR PAÍS
     # =============================================================================
     
     st.header("🌍 Análise Detalhada por País")
     
     if not viagens_por_pais.empty:
-        # Criar mapa com barras horizontais
         fig_mapa = px.bar(
             viagens_por_pais.sort_values('Total_Viagens', ascending=True).tail(15),
             x='Total_Viagens',
@@ -562,11 +479,9 @@ try:
         )
         st.plotly_chart(fig_mapa, use_container_width=True)
         
-        # Mapa de scatter com coordenadas (alternativa visual)
         st.subheader("📍 Análise de Viagens vs Duração Média")
         
         try:
-            # Criar visualização alternativa com todos os países
             fig_scatter = go.Figure(data=[
                 go.Scatter(
                     x=viagens_por_pais['Total_Viagens'],
@@ -599,7 +514,6 @@ try:
         except:
             st.info("Gráfico de scatter indisponível")
         
-        # Tabela de países
         st.subheader("📋 Detalhes Completos por País")
         
         df_paises_display = viagens_por_pais.sort_values('Total_Viagens', ascending=False).copy()
@@ -610,8 +524,6 @@ try:
         df_paises_display['Duração Média (dias)'] = df_paises_display['Duração Média (dias)'].round(1)
         
         st.dataframe(df_paises_display, use_container_width=True)
-    else:
-        st.warning("⚠️ Nenhum país identificado nos dados filtrados. Verifique os dados de origem.")
     
     # =============================================================================
     # ANÁLISE TEMPORAL
@@ -633,10 +545,244 @@ try:
         st.info("Não há dados para o gráfico mensal")
     
     # =============================================================================
-    # ANÁLISE POR DIRETORIA
+    # 🎯 NOVOS GRÁFICOS DE GOVERNANÇA E INSIGHTS ESTRATÉGICOS
     # =============================================================================
     
-    st.header("🏢 Análise por Diretoria")
+    st.header("🎯 Análise de Governança e Eficiência")
+    
+    # 1. ÍNDICE DE CONCENTRAÇÃO (Pareto 80/20)
+    st.subheader("📊 Índice de Concentração de Viagens (Análise de Pareto)")
+    
+    viagens_servidor = df_filtrado['Servidor'].value_counts().reset_index()
+    viagens_servidor.columns = ['Servidor', 'Viagens']
+    viagens_servidor['Viagens_Acumulada'] = viagens_servidor['Viagens'].cumsum()
+    viagens_servidor['Percentual_Acumulado'] = (viagens_servidor['Viagens_Acumulada'] / viagens_servidor['Viagens'].sum() * 100)
+    
+    fig_pareto = go.Figure()
+    fig_pareto.add_trace(go.Bar(
+        x=list(range(1, len(viagens_servidor.head(20))+1)),
+        y=viagens_servidor.head(20)['Viagens'],
+        name='Viagens por Servidor',
+        marker_color='#0066CC'
+    ))
+    fig_pareto.add_trace(go.Scatter(
+        x=list(range(1, len(viagens_servidor.head(20))+1)),
+        y=viagens_servidor.head(20)['Percentual_Acumulado'],
+        name='% Acumulado',
+        yaxis='y2',
+        line=dict(color='#FF6B6B', width=3),
+        mode='lines+markers'
+    ))
+    fig_pareto.update_layout(
+        title='Análise de Pareto: Concentração de Viagens por Servidor (Top 20)<br><sub>Identifica 20% dos servidores responsáveis por ~80% das viagens</sub>',
+        xaxis_title='Ranking de Servidores',
+        yaxis_title='Número de Viagens',
+        yaxis2=dict(title='% Acumulado', overlaying='y', side='right'),
+        height=500,
+        hovermode='closest'
+    )
+    st.plotly_chart(fig_pareto, use_container_width=True)
+    
+    # Insight Pareto
+    pct_80 = viagens_servidor[viagens_servidor['Percentual_Acumulado'] <= 80].shape[0]
+    pct_20 = len(viagens_servidor)
+    st.markdown(f"""
+        <div class="insight-box">
+        <b>💡 Insight de Governança:</b> Aproximadamente <b>{pct_80} servidores ({pct_80/pct_20*100:.1f}%)</b> são responsáveis por <b>~80% das viagens</b>. 
+        Isso sugere oportunidades de:
+        <br>✓ Centralizar expertise em gestão de viagens
+        <br>✓ Otimizar processos para estes servidores chave
+        <br>✓ Analisar motivos de concentração (especialização vs falta de distribuição)
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # =============================================================================
+    # 2. PLANEJAMENTO POR DIRETORIA (Antecedência Média)
+    # =============================================================================
+    
+    st.subheader("📅 Taxa de Planejamento por Diretoria")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        planejamento_diretoria = df_filtrado.groupby('Diretoria').agg({
+            'Antecedência (dias)': 'mean',
+            'Servidor': 'count'
+        }).reset_index()
+        planejamento_diretoria.columns = ['Diretoria', 'Antecedência_Media', 'Total_Viagens']
+        planejamento_diretoria = planejamento_diretoria.sort_values('Antecedência_Media', ascending=False)
+        
+        fig_antec = px.bar(
+            planejamento_diretoria,
+            x='Diretoria',
+            y='Antecedência_Media',
+            color='Antecedência_Media',
+            color_continuous_scale='RdYlGn',
+            title='Antecedência Média de Planejamento por Diretoria',
+            labels={'Antecedência_Media': 'Dias de Antecedência'}
+        )
+        fig_antec.add_hline(y=30, line_dash="dash", line_color="red", 
+                           annotation_text="Meta: 30 dias", annotation_position="right")
+        st.plotly_chart(fig_antec, use_container_width=True)
+    
+    with col2:
+        pct_bem_planejado_dir = df_filtrado.groupby('Diretoria')['Bem_Planejado'].apply(
+            lambda x: (x.sum() / len(x) * 100) if len(x) > 0 else 0
+        ).reset_index()
+        pct_bem_planejado_dir.columns = ['Diretoria', 'Percentual_Bem_Planejado']
+        pct_bem_planejado_dir = pct_bem_planejado_dir.sort_values('Percentual_Bem_Planejado', ascending=False)
+        
+        fig_pct = px.bar(
+            pct_bem_planejado_dir,
+            x='Diretoria',
+            y='Percentual_Bem_Planejado',
+            color='Percentual_Bem_Planejado',
+            color_continuous_scale='Greens',
+            title='% de Viagens Bem Planejadas (Antecedência ≥ 30 dias)',
+            labels={'Percentual_Bem_Planejado': '% Bem Planejado'}
+        )
+        fig_pct.add_hline(y=80, line_dash="dash", line_color="blue", 
+                         annotation_text="Meta: 80%", annotation_position="right")
+        st.plotly_chart(fig_pct, use_container_width=True)
+    
+    # =============================================================================
+    # 3. CORRELAÇÃO: ANTECEDÊNCIA vs DURAÇÃO
+    # =============================================================================
+    
+    st.subheader("🔗 Correlação: Antecedência de Planejamento vs Duração da Viagem")
+    
+    fig_corr = px.scatter(
+        df_filtrado,
+        x='Antecedência (dias)',
+        y='Duração (dias)',
+        size='Custo' if 'Custo' in df_filtrado.columns else None,
+        color='Bem_Planejado',
+        hover_data=['Servidor', 'Diretoria'],
+        title='Análise: Viagens Bem Planejadas tendem a ser mais longas ou curtas?',
+        labels={'Bem_Planejado': 'Bem Planejado (30+ dias)'}
+    )
+    fig_corr.update_layout(height=500)
+    st.plotly_chart(fig_corr, use_container_width=True)
+    
+    corr_antec_duracao = df_filtrado[['Antecedência (dias)', 'Duração (dias)']].corr().iloc[0, 1]
+    st.markdown(f"""
+        <div class="insight-box">
+        <b>💡 Correlação Identificada:</b> Coeficiente de correlação: <b>{corr_antec_duracao:.2f}</b>
+        <br>{'✓ Viagens bem planejadas tendem a ser mais longas/curtas' if abs(corr_antec_duracao) > 0.3 else '✓ Sem correlação significativa encontrada'}
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # =============================================================================
+    # 4. EFICIÊNCIA: CUSTO POR TIPO DE VIAGEM
+    # =============================================================================
+    
+    if 'Custo' in df_filtrado.columns:
+        st.subheader("💰 Eficiência de Custo por Tipo de Viagem")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            custo_tipo = df_filtrado.groupby('Tipo de Viagem').agg({
+                'Custo': ['mean', 'sum', 'count']
+            }).reset_index()
+            custo_tipo.columns = ['Tipo_Viagem', 'Custo_Medio', 'Custo_Total', 'Qtd']
+            
+            fig_custo_tipo = px.bar(
+                custo_tipo.sort_values('Custo_Medio', ascending=False),
+                x='Tipo_Viagem',
+                y='Custo_Medio',
+                color='Custo_Medio',
+                color_continuous_scale='Reds',
+                title='Custo Médio por Tipo de Viagem',
+                labels={'Custo_Medio': 'Custo Médio (R$)'}
+            )
+            st.plotly_chart(fig_custo_tipo, use_container_width=True)
+        
+        with col2:
+            duracao_custo_tipo = df_filtrado.groupby('Tipo de Viagem').agg({
+                'Duração (dias)': 'mean',
+                'Custo': 'mean'
+            }).reset_index()
+            duracao_custo_tipo['Custo_Por_Dia'] = duracao_custo_tipo['Custo'] / duracao_custo_tipo['Duração (dias)']
+            
+            fig_roi = px.bar(
+                duracao_custo_tipo.sort_values('Custo_Por_Dia', ascending=False),
+                x='Tipo de Viagem',
+                y='Custo_Por_Dia',
+                color='Custo_Por_Dia',
+                color_continuous_scale='Oranges',
+                title='Custo por Dia de Duração (Eficiência)',
+                labels={'Custo_Por_Dia': 'R$ por Dia'}
+            )
+            st.plotly_chart(fig_roi, use_container_width=True)
+    
+    # =============================================================================
+    # 5. MATRIZ DIRETORIA x PAÍS (Análise de Focos Estratégicos)
+    # =============================================================================
+    
+    st.subheader("🎯 Matriz Estratégica: Diretorias vs Países")
+    
+    matriz_dir_pais = df_com_pais.groupby(['Diretoria', 'País_Inglês']).size().reset_index(name='Viagens')
+    matriz_pivot = matriz_dir_pais.pivot(index='Diretoria', columns='País_Inglês', values='Viagens').fillna(0)
+    
+    # Mostrar apenas top 15 países
+    top_paises = df_com_pais['País_Inglês'].value_counts().head(15).index
+    matriz_pivot_top = matriz_pivot[top_paises]
+    
+    fig_heatmap = px.imshow(
+        matriz_pivot_top,
+        labels=dict(x="País", y="Diretoria", color="Viagens"),
+        title='Mapa de Calor: Distribuição de Viagens (Diretoria x País Top 15)',
+        color_continuous_scale='YlOrRd',
+        height=500
+    )
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+    
+    # =============================================================================
+    # 6. DISTRIBUIÇÃO POR GÊNERO (Equity Analysis)
+    # =============================================================================
+    
+    st.subheader("👥 Análise de Equidade: Distribuição de Viagens por Gênero")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        genero_viagens = df_filtrado['Gênero'].value_counts().reset_index()
+        genero_viagens.columns = ['Gênero', 'Viagens']
+        
+        fig_genero = px.pie(
+            genero_viagens,
+            values='Viagens',
+            names='Gênero',
+            title='Distribuição de Viagens por Gênero',
+            color_discrete_sequence=CORES_IBAMA
+        )
+        fig_genero.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(fig_genero, use_container_width=True)
+    
+    with col2:
+        custo_genero = df_filtrado.groupby('Gênero').agg({
+            'Custo': 'mean',
+            'Duração (dias)': 'mean',
+            'Servidor': 'count'
+        }).reset_index()
+        custo_genero.columns = ['Gênero', 'Custo_Medio', 'Duracao_Media', 'Viagens']
+        
+        fig_custo_gen = px.bar(
+            custo_genero,
+            x='Gênero',
+            y=['Custo_Medio', 'Duracao_Media'],
+            title='Custo Médio e Duração por Gênero',
+            barmode='group',
+            labels={'value': 'Valor', 'variable': 'Métrica'}
+        )
+        st.plotly_chart(fig_custo_gen, use_container_width=True)
+    
+    # =============================================================================
+    # 7. ANÁLISE POR DIRETORIA (Recursos e Alocação)
+    # =============================================================================
+    
+    st.header("🏢 Análise de Recursos por Diretoria")
     
     col1, col2 = st.columns(2)
     
@@ -669,86 +815,52 @@ try:
         st.plotly_chart(fig_dur_dir, use_container_width=True)
     
     # =============================================================================
-    # ANÁLISE DE GÊNERO E RANKINGS
+    # 8. TENDÊNCIA TEMPORAL DE CUSTO ACUMULADO
     # =============================================================================
     
-    st.header("👥 Análise de Gênero e Rankings")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Distribuição por gênero
-        distrib_genero = df_filtrado['Gênero'].value_counts()
-        if not distrib_genero.empty:
-            fig_genero = px.pie(
-                values=distrib_genero.values, 
-                names=distrib_genero.index,
-                title='Distribuição por Gênero',
-                color_discrete_sequence=CORES_IBAMA
-            )
-            fig_genero.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig_genero, use_container_width=True)
-        else:
-            st.info("Não há dados de gênero para exibir")
-    
-    with col2:
-        # Ranking de servidores
-        servidores_count = df_filtrado['Servidor'].value_counts().head(10).reset_index()
-        servidores_count.columns = ['Servidor', 'Viagens']
+    if 'Custo' in df_filtrado.columns:
+        st.subheader("📈 Tendência Temporal: Custo Acumulado ao Longo do Período")
         
-        if not servidores_count.empty:
-            fig_servidores = px.bar(
-                servidores_count,
-                x='Viagens',
-                y='Servidor',
-                orientation='h',
-                title='Top 10 Servidores (por número de viagens)',
-                color='Viagens',
-                color_continuous_scale='Plasma'
-            )
-            st.plotly_chart(fig_servidores, use_container_width=True)
-        else:
-            st.info("Não há dados para o ranking de servidores")
+        df_temporal = df_filtrado.copy()
+        df_temporal = df_temporal.sort_values('Data entrada na DAI')
+        df_temporal['Custo_Acumulado'] = df_temporal['Custo'].cumsum()
+        df_temporal['Data'] = df_temporal['Data entrada na DAI'].dt.date
+        
+        fig_tendencia = px.line(
+            df_temporal.drop_duplicates(subset=['Data entrada na DAI']).sort_values('Data entrada na DAI'),
+            x='Data entrada na DAI',
+            y='Custo_Acumulado',
+            title='Evolução do Custo Acumulado ao Longo do Período',
+            markers=True,
+            line_shape='spline'
+        )
+        fig_tendencia.update_layout(height=450, hovermode='x unified')
+        st.plotly_chart(fig_tendencia, use_container_width=True)
     
     # =============================================================================
-    # ANÁLISE DE TIPOS DE VIAGEM
+    # 9. DISTRIBUIÇÃO DE CUSTOS POR SERVIDOR (TOP 15)
     # =============================================================================
     
-    st.header("✈️ Análise de Tipos de Viagem")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Distribuição por tipo de viagem
-        distrib_tipo = df_filtrado['Tipo de Viagem'].value_counts()
-        if not distrib_tipo.empty:
-            fig_tipo = px.pie(
-                values=distrib_tipo.values, 
-                names=distrib_tipo.index,
-                title='Distribuição por Tipo de Viagem',
-                color_discrete_sequence=CORES_IBAMA
-            )
-            fig_tipo.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig_tipo, use_container_width=True)
-        else:
-            st.info("Não há dados de tipo de viagem")
-    
-    with col2:
-        # Duração média por tipo de viagem
-        duracao_tipo = df_filtrado.groupby('Tipo de Viagem')['Duração (dias)'].agg(['mean', 'count']).reset_index()
-        if not duracao_tipo.empty:
-            fig_duracao_tipo = px.bar(
-                duracao_tipo,
-                x='Tipo de Viagem',
-                y='mean',
-                title='Duração Média por Tipo de Viagem',
-                color='mean',
-                color_continuous_scale='Blues',
-                labels={'mean': 'Duração Média (dias)'}
-            )
-            st.plotly_chart(fig_duracao_tipo, use_container_width=True)
-        else:
-            st.info("Não há dados de duração por tipo")
+    if 'Custo' in df_filtrado.columns:
+        st.subheader("👤 Análise de Custos: Top 15 Servidores com Maior Alocação")
+        
+        custo_servidor = df_filtrado.groupby('Servidor').agg({
+            'Custo': ['sum', 'mean', 'count']
+        }).reset_index()
+        custo_servidor.columns = ['Servidor', 'Custo_Total', 'Custo_Medio', 'Viagens']
+        custo_servidor = custo_servidor.sort_values('Custo_Total', ascending=False).head(15)
+        
+        fig_custo_serv = px.bar(
+            custo_servidor,
+            x='Custo_Total',
+            y='Servidor',
+            orientation='h',
+            color='Custo_Medio',
+            color_continuous_scale='Reds',
+            title='Top 15 Servidores por Custo Total',
+            hover_data={'Viagens': True}
+        )
+        st.plotly_chart(fig_custo_serv, use_container_width=True)
     
     # =============================================================================
     # DADOS DETALHADOS
@@ -759,7 +871,6 @@ try:
     with st.expander("Visualizar dados processados"):
         st.dataframe(df_filtrado)
         
-        # Estatísticas descritivas
         st.subheader("Estatísticas Descritivas")
         col1, col2, col3 = st.columns(3)
         
@@ -775,7 +886,6 @@ try:
             st.metric("Total de Países", f"{df_com_pais['País_Inglês'].nunique()}")
             st.metric("Total de Diretorias", f"{df_filtrado['Diretoria'].nunique()}")
         
-        # Opção de download
         csv = df_filtrado.to_csv(index=False)
         st.download_button(
             label="📥 Download dos dados filtrados (CSV)",
