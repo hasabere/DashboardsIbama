@@ -900,4 +900,61 @@ try:
         distrib_tipo = df_filtrado['Tipo de Viagem'].value_counts()
         if not distrib_tipo.empty:
             fig_tipo = px.pie(
-                values=distrib_tipo.values,
+                values=distrib_tipo.values, 
+                names=distrib_tipo.index,
+                title='Distribuição por Tipo de Viagem',
+                color_discrete_sequence=CORES_IBAMA
+            )
+            fig_tipo.update_traces(textposition='inside', textinfo='percent+label')
+            st.plotly_chart(fig_tipo, use_container_width=True)
+    
+    with col2:
+        duracao_tipo = df_filtrado.groupby('Tipo de Viagem')['Duração (dias)'].agg(['mean', 'count']).reset_index()
+        if not duracao_tipo.empty:
+            fig_duracao_tipo_detail = px.bar(
+                duracao_tipo,
+                x='Tipo de Viagem',
+                y='mean',
+                title='Duração Média por Tipo de Viagem',
+                color='mean',
+                color_continuous_scale='Blues',
+                labels={'mean': 'Duração Média (dias)'}
+            )
+            st.plotly_chart(fig_duracao_tipo_detail, use_container_width=True)
+    
+    # =============================================================================
+    # DADOS DETALHADOS
+    # =============================================================================
+    
+    st.header("📋 Dados Detalhados")
+    
+    with st.expander("Visualizar dados processados"):
+        st.dataframe(df_filtrado)
+        
+        st.subheader("Estatísticas Descritivas")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Duração Média", f"{df_filtrado['Duração (dias)'].mean():.1f} dias")
+            st.metric("Duração Mínima", f"{df_filtrado['Duração (dias)'].min():.0f} dias")
+        
+        with col2:
+            st.metric("Duração Máxima", f"{df_filtrado['Duração (dias)'].max():.0f} dias")
+            st.metric("Antecedência Média", f"{df_filtrado['Antecedência (dias)'].mean():.1f} dias")
+        
+        with col3:
+            st.metric("Total de Países", f"{df_com_pais['País_Inglês'].nunique()}")
+            st.metric("Total de Diretorias", f"{df_filtrado['Diretoria'].nunique()}")
+        
+        csv = df_filtrado.to_csv(index=False)
+        st.download_button(
+            label="📥 Download dos dados filtrados (CSV)",
+            data=csv,
+            file_name=f"afastamentos_ibama_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv"
+        )
+
+except Exception as e:
+    st.error(f"Erro ao processar os dados: {str(e)}")
+    import traceback
+    st.code(traceback.format_exc())
