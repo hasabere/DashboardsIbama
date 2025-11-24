@@ -41,6 +41,14 @@ st.markdown("""
         margin: 1rem 0;
         border-left: 5px solid #FF4757;
     }
+    .alert-box {
+        background: linear-gradient(135deg, #FFB347, #FF6B6B);
+        padding: 1.5rem;
+        border-radius: 10px;
+        color: white;
+        margin: 1rem 0;
+        border-left: 5px solid #FF4500;
+    }
     </style>
     <h1 class="main-header">🌍 Dashboard de Afastamentos 2025 - IBAMA</h1>
 """, unsafe_allow_html=True)
@@ -196,6 +204,11 @@ try:
     
     # Indicadores de planejamento
     df['Bem_Planejado'] = df['Antecedência (dias)'] >= 30
+    
+    # Classificação de duração
+    df['Tipo_Duracao'] = pd.cut(df['Duração (dias)'], 
+                                bins=[0, 5, 10, 30, 365], 
+                                labels=['Muito Curta (≤5d)', 'Curta (6-10d)', 'Média (11-30d)', 'Longa (>30d)'])
     
     # =============================================================================
     # PROCESSAMENTO DE PAÍSES
@@ -545,356 +558,106 @@ try:
         st.info("Não há dados para o gráfico mensal")
     
     # =============================================================================
-    # 🎯 NOVOS GRÁFICOS DE GOVERNANÇA E INSIGHTS ESTRATÉGICOS
+    # 🎯 NOVOS GRÁFICOS: ASPECTOS NEGLIGENCIADOS E IMPORTANTES
     # =============================================================================
     
-    st.header("🎯 Análise de Governança e Eficiência")
+    st.header("🎯 Análise de Equidade e Aspectos Negligenciados")
     
-    # 1. ÍNDICE DE CONCENTRAÇÃO (Pareto 80/20)
-    st.subheader("📊 Índice de Concentração de Viagens (Análise de Pareto)")
-    
-    viagens_servidor = df_filtrado['Servidor'].value_counts().reset_index()
-    viagens_servidor.columns = ['Servidor', 'Viagens']
-    viagens_servidor['Viagens_Acumulada'] = viagens_servidor['Viagens'].cumsum()
-    viagens_servidor['Percentual_Acumulado'] = (viagens_servidor['Viagens_Acumulada'] / viagens_servidor['Viagens'].sum() * 100)
-    
-    fig_pareto = go.Figure()
-    fig_pareto.add_trace(go.Bar(
-        x=list(range(1, len(viagens_servidor.head(20))+1)),
-        y=viagens_servidor.head(20)['Viagens'],
-        name='Viagens por Servidor',
-        marker_color='#0066CC'
-    ))
-    fig_pareto.add_trace(go.Scatter(
-        x=list(range(1, len(viagens_servidor.head(20))+1)),
-        y=viagens_servidor.head(20)['Percentual_Acumulado'],
-        name='% Acumulado',
-        yaxis='y2',
-        line=dict(color='#FF6B6B', width=3),
-        mode='lines+markers'
-    ))
-    fig_pareto.update_layout(
-        title='Análise de Pareto: Concentração de Viagens por Servidor (Top 20)<br><sub>Identifica 20% dos servidores responsáveis por ~80% das viagens</sub>',
-        xaxis_title='Ranking de Servidores',
-        yaxis_title='Número de Viagens',
-        yaxis2=dict(title='% Acumulado', overlaying='y', side='right'),
-        height=500,
-        hovermode='closest'
-    )
-    st.plotly_chart(fig_pareto, use_container_width=True)
-    
-    # Insight Pareto
-    pct_80 = viagens_servidor[viagens_servidor['Percentual_Acumulado'] <= 80].shape[0]
-    pct_20 = len(viagens_servidor)
-    st.markdown(f"""
-        <div class="insight-box">
-        <b>💡 Insight de Governança:</b> Aproximadamente <b>{pct_80} servidores ({pct_80/pct_20*100:.1f}%)</b> são responsáveis por <b>~80% das viagens</b>. 
-        Isso sugere oportunidades de:
-        <br>✓ Centralizar expertise em gestão de viagens
-        <br>✓ Otimizar processos para estes servidores chave
-        <br>✓ Analisar motivos de concentração (especialização vs falta de distribuição)
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # =============================================================================
-    # 2. PLANEJAMENTO POR DIRETORIA (Antecedência Média)
-    # =============================================================================
-    
-    st.subheader("📅 Taxa de Planejamento por Diretoria")
+    # 1. DISTRIBUIÇÃO DE GÊNERO POR TIPO DE VIAGEM
+    st.subheader("👥 Distribuição de Gênero por Tipo de Viagem")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        planejamento_diretoria = df_filtrado.groupby('Diretoria').agg({
-            'Antecedência (dias)': 'mean',
-            'Servidor': 'count'
-        }).reset_index()
-        planejamento_diretoria.columns = ['Diretoria', 'Antecedência_Media', 'Total_Viagens']
-        planejamento_diretoria = planejamento_diretoria.sort_values('Antecedência_Media', ascending=False)
+        genero_tipo = df_filtrado.groupby(['Tipo de Viagem', 'Gênero']).size().reset_index(name='Viagens')
         
-        fig_antec = px.bar(
-            planejamento_diretoria,
-            x='Diretoria',
-            y='Antecedência_Media',
-            color='Antecedência_Media',
-            color_continuous_scale='RdYlGn',
-            title='Antecedência Média de Planejamento por Diretoria',
-            labels={'Antecedência_Media': 'Dias de Antecedência'}
+        fig_genero_tipo = px.bar(
+            genero_tipo,
+            x='Tipo de Viagem',
+            y='Viagens',
+            color='Gênero',
+            barmode='group',
+            title='Acesso por Gênero: Quem viaja para qual tipo de evento?',
+            color_discrete_map={'Masculino': '#0066CC', 'Feminino': '#FF6B9D', 'Não Informado': '#CCCCCC'}
         )
-        fig_antec.add_hline(y=30, line_dash="dash", line_color="red", 
-                           annotation_text="Meta: 30 dias", annotation_position="right")
-        st.plotly_chart(fig_antec, use_container_width=True)
+        st.plotly_chart(fig_genero_tipo, use_container_width=True)
     
     with col2:
-        pct_bem_planejado_dir = df_filtrado.groupby('Diretoria')['Bem_Planejado'].apply(
-            lambda x: (x.sum() / len(x) * 100) if len(x) > 0 else 0
-        ).reset_index()
-        pct_bem_planejado_dir.columns = ['Diretoria', 'Percentual_Bem_Planejado']
-        pct_bem_planejado_dir = pct_bem_planejado_dir.sort_values('Percentual_Bem_Planejado', ascending=False)
+        # Percentual por gênero em cada tipo
+        genero_tipo_pct = df_filtrado.groupby('Tipo de Viagem')['Gênero'].value_counts(normalize=True).unstack(fill_value=0) * 100
         
-        fig_pct = px.bar(
-            pct_bem_planejado_dir,
-            x='Diretoria',
-            y='Percentual_Bem_Planejado',
-            color='Percentual_Bem_Planejado',
-            color_continuous_scale='Greens',
-            title='% de Viagens Bem Planejadas (Antecedência ≥ 30 dias)',
-            labels={'Percentual_Bem_Planejado': '% Bem Planejado'}
+        fig_genero_tipo_pct = px.bar(
+            genero_tipo_pct.reset_index().melt(id_vars='Tipo de Viagem'),
+            x='Tipo de Viagem',
+            y='value',
+            color='Gênero',
+            barmode='stack',
+            title='Composição de Gênero por Tipo de Viagem (%)',
+            labels={'value': 'Percentual (%)'},
+            color_discrete_map={'Masculino': '#0066CC', 'Feminino': '#FF6B9D', 'Não Informado': '#CCCCCC'}
         )
-        fig_pct.add_hline(y=80, line_dash="dash", line_color="blue", 
-                         annotation_text="Meta: 80%", annotation_position="right")
-        st.plotly_chart(fig_pct, use_container_width=True)
+        st.plotly_chart(fig_genero_tipo_pct, use_container_width=True)
     
-    # =============================================================================
-    # 3. CORRELAÇÃO: ANTECEDÊNCIA vs DURAÇÃO
-    # =============================================================================
-    
-    st.subheader("🔗 Correlação: Antecedência de Planejamento vs Duração da Viagem")
-    
-    fig_corr = px.scatter(
-        df_filtrado,
-        x='Antecedência (dias)',
-        y='Duração (dias)',
-        size='Custo' if 'Custo' in df_filtrado.columns else None,
-        color='Bem_Planejado',
-        hover_data=['Servidor', 'Diretoria'],
-        title='Análise: Viagens Bem Planejadas tendem a ser mais longas ou curtas?',
-        labels={'Bem_Planejado': 'Bem Planejado (30+ dias)'}
-    )
-    fig_corr.update_layout(height=500)
-    st.plotly_chart(fig_corr, use_container_width=True)
-    
-    corr_antec_duracao = df_filtrado[['Antecedência (dias)', 'Duração (dias)']].corr().iloc[0, 1]
+    # Insight
+    pct_fem_total = (df_filtrado['Gênero'] == 'Feminino').sum() / len(df_filtrado) * 100 if len(df_filtrado) > 0 else 0
     st.markdown(f"""
-        <div class="insight-box">
-        <b>💡 Correlação Identificada:</b> Coeficiente de correlação: <b>{corr_antec_duracao:.2f}</b>
-        <br>{'✓ Viagens bem planejadas tendem a ser mais longas/curtas' if abs(corr_antec_duracao) > 0.3 else '✓ Sem correlação significativa encontrada'}
+        <div class="alert-box">
+        <b>⚠️ Alerta de Equidade:</b> Mulheres representam apenas <b>{pct_fem_total:.1f}%</b> das viagens registradas.
+        <br>📌 Recomendação: Analisar barreiras de acesso e oportunidades desiguais por gênero em cada tipo de viagem.
         </div>
     """, unsafe_allow_html=True)
     
     # =============================================================================
-    # 4. EFICIÊNCIA: CUSTO POR TIPO DE VIAGEM
+    # 2. PARIDADE DE CUSTO E OPORTUNIDADE POR GÊNERO
     # =============================================================================
     
     if 'Custo' in df_filtrado.columns:
-        st.subheader("💰 Eficiência de Custo por Tipo de Viagem")
+        st.subheader("💰 Paridade de Investimento: Análise de Custo por Gênero")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            custo_tipo = df_filtrado.groupby('Tipo de Viagem').agg({
-                'Custo': ['mean', 'sum', 'count']
-            }).reset_index()
-            custo_tipo.columns = ['Tipo_Viagem', 'Custo_Medio', 'Custo_Total', 'Qtd']
+            custo_genero = df_filtrado.groupby('Gênero').agg({
+                'Custo': ['mean', 'median', 'count'],
+                'Duração (dias)': 'mean'
+            }).round(2)
             
-            fig_custo_tipo = px.bar(
-                custo_tipo.sort_values('Custo_Medio', ascending=False),
-                x='Tipo_Viagem',
-                y='Custo_Medio',
-                color='Custo_Medio',
-                color_continuous_scale='Reds',
-                title='Custo Médio por Tipo de Viagem',
-                labels={'Custo_Medio': 'Custo Médio (R$)'}
-            )
-            st.plotly_chart(fig_custo_tipo, use_container_width=True)
+            custo_genero_display = pd.DataFrame({
+                'Gênero': custo_genero.index,
+                'Custo Médio (R$)': custo_genero['Custo']['mean'].values,
+                'Custo Mediano (R$)': custo_genero['Custo']['median'].values,
+                'Duração Média': custo_genero['Duração (dias)']['mean'].values,
+                'Total de Viagens': custo_genero['Custo']['count'].values.astype(int)
+            })
+            
+            st.dataframe(custo_genero_display, use_container_width=True)
         
         with col2:
-            duracao_custo_tipo = df_filtrado.groupby('Tipo de Viagem').agg({
-                'Duração (dias)': 'mean',
-                'Custo': 'mean'
+            custo_gen_detail = df_filtrado.groupby('Gênero').agg({
+                'Custo': 'mean',
+                'Duração (dias)': 'mean'
             }).reset_index()
-            duracao_custo_tipo['Custo_Por_Dia'] = duracao_custo_tipo['Custo'] / duracao_custo_tipo['Duração (dias)']
             
-            fig_roi = px.bar(
-                duracao_custo_tipo.sort_values('Custo_Por_Dia', ascending=False),
-                x='Tipo de Viagem',
-                y='Custo_Por_Dia',
-                color='Custo_Por_Dia',
-                color_continuous_scale='Oranges',
-                title='Custo por Dia de Duração (Eficiência)',
-                labels={'Custo_Por_Dia': 'R$ por Dia'}
+            fig_custo_gen = px.bar(
+                custo_gen_detail,
+                x='Gênero',
+                y=['Custo', 'Duração (dias)'],
+                barmode='group',
+                title='Custo Médio e Duração por Gênero',
+                labels={'value': 'Valor'},
+                color_discrete_map={'Custo': '#FF6B6B', 'Duração (dias)': '#4ECDC4'}
             )
-            st.plotly_chart(fig_roi, use_container_width=True)
-    
-    # =============================================================================
-    # 5. MATRIZ DIRETORIA x PAÍS (Análise de Focos Estratégicos)
-    # =============================================================================
-    
-    st.subheader("🎯 Matriz Estratégica: Diretorias vs Países")
-    
-    matriz_dir_pais = df_com_pais.groupby(['Diretoria', 'País_Inglês']).size().reset_index(name='Viagens')
-    matriz_pivot = matriz_dir_pais.pivot(index='Diretoria', columns='País_Inglês', values='Viagens').fillna(0)
-    
-    # Mostrar apenas top 15 países
-    top_paises = df_com_pais['País_Inglês'].value_counts().head(15).index
-    matriz_pivot_top = matriz_pivot[top_paises]
-    
-    fig_heatmap = px.imshow(
-        matriz_pivot_top,
-        labels=dict(x="País", y="Diretoria", color="Viagens"),
-        title='Mapa de Calor: Distribuição de Viagens (Diretoria x País Top 15)',
-        color_continuous_scale='YlOrRd',
-        height=500
-    )
-    st.plotly_chart(fig_heatmap, use_container_width=True)
-    
-    # =============================================================================
-    # 6. DISTRIBUIÇÃO POR GÊNERO (Equity Analysis)
-    # =============================================================================
-    
-    st.subheader("👥 Análise de Equidade: Distribuição de Viagens por Gênero")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        genero_viagens = df_filtrado['Gênero'].value_counts().reset_index()
-        genero_viagens.columns = ['Gênero', 'Viagens']
+            fig_custo_gen.update_layout(yaxis_title="Valor", hovermode='closest')
+            st.plotly_chart(fig_custo_gen, use_container_width=True)
         
-        fig_genero = px.pie(
-            genero_viagens,
-            values='Viagens',
-            names='Gênero',
-            title='Distribuição de Viagens por Gênero',
-            color_discrete_sequence=CORES_IBAMA
-        )
-        fig_genero.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_genero, use_container_width=True)
-    
-    with col2:
-        custo_genero = df_filtrado.groupby('Gênero').agg({
-            'Custo': 'mean',
-            'Duração (dias)': 'mean',
-            'Servidor': 'count'
-        }).reset_index()
-        custo_genero.columns = ['Gênero', 'Custo_Medio', 'Duracao_Media', 'Viagens']
+        # Insight
+        custo_m = df_filtrado[df_filtrado['Gênero'] == 'Masculino']['Custo'].mean()
+        custo_f = df_filtrado[df_filtrado['Gênero'] == 'Feminino']['Custo'].mean()
+        diff_pct = ((custo_m - custo_f) / custo_f * 100) if custo_f > 0 else 0
         
-        fig_custo_gen = px.bar(
-            custo_genero,
-            x='Gênero',
-            y=['Custo_Medio', 'Duracao_Media'],
-            title='Custo Médio e Duração por Gênero',
-            barmode='group',
-            labels={'value': 'Valor', 'variable': 'Métrica'}
-        )
-        st.plotly_chart(fig_custo_gen, use_container_width=True)
-    
-    # =============================================================================
-    # 7. ANÁLISE POR DIRETORIA (Recursos e Alocação)
-    # =============================================================================
-    
-    st.header("🏢 Análise de Recursos por Diretoria")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        viagens_diretoria = df_filtrado['Diretoria'].value_counts().reset_index()
-        viagens_diretoria.columns = ['Diretoria', 'Viagens']
-        
-        fig_diretoria = px.bar(
-            viagens_diretoria,
-            x='Diretoria',
-            y='Viagens',
-            title='Distribuição de Viagens por Diretoria',
-            color='Viagens',
-            color_continuous_scale='Blues'
-        )
-        st.plotly_chart(fig_diretoria, use_container_width=True)
-    
-    with col2:
-        duracao_diretoria = df_filtrado.groupby('Diretoria')['Duração (dias)'].mean().sort_values(ascending=False).reset_index()
-        duracao_diretoria.columns = ['Diretoria', 'Duração Média']
-        
-        fig_dur_dir = px.bar(
-            duracao_diretoria,
-            x='Diretoria',
-            y='Duração Média',
-            title='Duração Média de Afastamento por Diretoria',
-            color='Duração Média',
-            color_continuous_scale='Oranges'
-        )
-        st.plotly_chart(fig_dur_dir, use_container_width=True)
-    
-    # =============================================================================
-    # 8. TENDÊNCIA TEMPORAL DE CUSTO ACUMULADO
-    # =============================================================================
-    
-    if 'Custo' in df_filtrado.columns:
-        st.subheader("📈 Tendência Temporal: Custo Acumulado ao Longo do Período")
-        
-        df_temporal = df_filtrado.copy()
-        df_temporal = df_temporal.sort_values('Data entrada na DAI')
-        df_temporal['Custo_Acumulado'] = df_temporal['Custo'].cumsum()
-        df_temporal['Data'] = df_temporal['Data entrada na DAI'].dt.date
-        
-        fig_tendencia = px.line(
-            df_temporal.drop_duplicates(subset=['Data entrada na DAI']).sort_values('Data entrada na DAI'),
-            x='Data entrada na DAI',
-            y='Custo_Acumulado',
-            title='Evolução do Custo Acumulado ao Longo do Período',
-            markers=True,
-            line_shape='spline'
-        )
-        fig_tendencia.update_layout(height=450, hovermode='x unified')
-        st.plotly_chart(fig_tendencia, use_container_width=True)
-    
-    # =============================================================================
-    # 9. DISTRIBUIÇÃO DE CUSTOS POR SERVIDOR (TOP 15)
-    # =============================================================================
-    
-    if 'Custo' in df_filtrado.columns:
-        st.subheader("👤 Análise de Custos: Top 15 Servidores com Maior Alocação")
-        
-        custo_servidor = df_filtrado.groupby('Servidor').agg({
-            'Custo': ['sum', 'mean', 'count']
-        }).reset_index()
-        custo_servidor.columns = ['Servidor', 'Custo_Total', 'Custo_Medio', 'Viagens']
-        custo_servidor = custo_servidor.sort_values('Custo_Total', ascending=False).head(15)
-        
-        fig_custo_serv = px.bar(
-            custo_servidor,
-            x='Custo_Total',
-            y='Servidor',
-            orientation='h',
-            color='Custo_Medio',
-            color_continuous_scale='Reds',
-            title='Top 15 Servidores por Custo Total',
-            hover_data={'Viagens': True}
-        )
-        st.plotly_chart(fig_custo_serv, use_container_width=True)
-    
-    # =============================================================================
-    # DADOS DETALHADOS
-    # =============================================================================
-    
-    st.header("📋 Dados Detalhados")
-    
-    with st.expander("Visualizar dados processados"):
-        st.dataframe(df_filtrado)
-        
-        st.subheader("Estatísticas Descritivas")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("Duração Média", f"{df_filtrado['Duração (dias)'].mean():.1f} dias")
-            st.metric("Duração Mínima", f"{df_filtrado['Duração (dias)'].min():.0f} dias")
-        
-        with col2:
-            st.metric("Duração Máxima", f"{df_filtrado['Duração (dias)'].max():.0f} dias")
-            st.metric("Antecedência Média", f"{df_filtrado['Antecedência (dias)'].mean():.1f} dias")
-        
-        with col3:
-            st.metric("Total de Países", f"{df_com_pais['País_Inglês'].nunique()}")
-            st.metric("Total de Diretorias", f"{df_filtrado['Diretoria'].nunique()}")
-        
-        csv = df_filtrado.to_csv(index=False)
-        st.download_button(
-            label="📥 Download dos dados filtrados (CSV)",
-            data=csv,
-            file_name=f"afastamentos_ibama_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
-
-except Exception as e:
-    st.error(f"Erro ao processar os dados: {str(e)}")
-    import traceback
-    st.code(traceback.format_exc())
+        st.markdown(f"""
+            <div class="alert-box">
+            <b>🚨 Achado Crítico:</b> Mulheres recebem <b>{'MENOS' if diff_pct > 0 else 'MAIS'} R$ {abs(diff_pct):.1f}%</b> em orçamento médio de viagem.
+            <br>💡 Questão para investigação: É uma diferença de especialização ou de oportunidade desigual?
+            </div>
+        """, unsafe_allow_
