@@ -40,7 +40,7 @@ st.markdown("""
 # Carregar os dados
 @st.cache_data
 def load_data():
-    file_path = r"C:\Users\49821553800\Desktop\Dash\Planilha\DATA Afastamentos 2025.xlsx"
+    file_path = "DATA Afastamentos 2025.xlsx"
     df = pd.read_excel(file_path, sheet_name="Afastamentos 2025")
     return df
 
