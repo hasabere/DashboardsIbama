@@ -616,59 +616,27 @@ try:
     """, unsafe_allow_html=True)
     
     # =============================================================================
-    # 2. PARIDADE DE CUSTO E OPORTUNIDADE POR GÊNERO
+    # 2. DURAÇÃO MÉDIA POR GÊNERO (APENAS GRÁFICO)
     # =============================================================================
     
-    if 'Custo' in df_filtrado.columns:
-        st.subheader("💰 Paridade de Investimento: Análise de Custo por Gênero")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            custo_genero = df_filtrado.groupby('Gênero').agg({
-                'Custo': ['mean', 'median', 'count'],
-                'Duração (dias)': 'mean'
-            }).round(2)
-            
-            custo_genero_display = pd.DataFrame({
-                'Gênero': custo_genero.index,
-                'Custo Médio (R$)': custo_genero['Custo']['mean'].values,
-                'Custo Mediano (R$)': custo_genero['Custo']['median'].values,
-                'Duração Média': custo_genero['Duração (dias)']['mean'].values,
-                'Total de Viagens': custo_genero['Custo']['count'].values.astype(int)
-            })
-            
-            st.dataframe(custo_genero_display, use_container_width=True)
-        
-        with col2:
-            custo_gen_detail = df_filtrado.groupby('Gênero').agg({
-                'Custo': 'mean',
-                'Duração (dias)': 'mean'
-            }).reset_index()
-            
-            fig_custo_gen = px.bar(
-                custo_gen_detail,
-                x='Gênero',
-                y=['Custo', 'Duração (dias)'],
-                barmode='group',
-                title='Custo Médio e Duração por Gênero',
-                labels={'value': 'Valor'},
-                color_discrete_map={'Custo': '#FF6B6B', 'Duração (dias)': '#4ECDC4'}
-            )
-            fig_custo_gen.update_layout(yaxis_title="Valor", hovermode='closest')
-            st.plotly_chart(fig_custo_gen, use_container_width=True)
-        
-        # Insight
-        custo_m = df_filtrado[df_filtrado['Gênero'] == 'Masculino']['Custo'].mean()
-        custo_f = df_filtrado[df_filtrado['Gênero'] == 'Feminino']['Custo'].mean()
-        diff_pct = ((custo_m - custo_f) / custo_f * 100) if custo_f > 0 else 0
-        
-        st.markdown(f"""
-            <div class="alert-box">
-            <b>🚨 Achado Crítico:</b> Mulheres recebem <b>{'MENOS' if diff_pct > 0 else 'MAIS'} {abs(diff_pct):.1f}%</b> em orçamento médio de viagem.
-            <br>💡 Questão para investigação: É uma diferença de especialização ou de oportunidade desigual?
-            </div>
-        """, unsafe_allow_html=True)
+    st.subheader("⏱️ Duração Média de Viagens por Gênero")
+    
+    duracao_gen_detail = df_filtrado.groupby('Gênero').agg({
+        'Duração (dias)': 'mean'
+    }).reset_index()
+    
+    fig_duracao_gen = px.bar(
+        duracao_gen_detail,
+        x='Gênero',
+        y='Duração (dias)',
+        color='Gênero',
+        color_discrete_map={'Masculino': '#0066CC', 'Feminino': '#FF6B9D', 'Não Informado': '#CCCCCC'},
+        title='Duração Média de Viagens por Gênero',
+        labels={'Duração (dias)': 'Duração Média (dias)'},
+        text_auto='.1f'
+    )
+    fig_duracao_gen.update_traces(textposition='outside')
+    st.plotly_chart(fig_duracao_gen, use_container_width=True)
     
     # =============================================================================
     # 3. REPRESENTATIVIDADE POR DIRETORIA E GÊNERO
@@ -753,7 +721,7 @@ try:
     """, unsafe_allow_html=True)
     
     # =============================================================================
-    # 🆕 GRÁFICO ROBUSTO: ANÁLISE POR TIPO DE VIAGEM (sem colunas inexistentes)
+    # 🆕 GRÁFICO: ANÁLISE POR TIPO DE VIAGEM
     # =============================================================================
     
     st.subheader("🎯 Prioridades por Tipo de Viagem e Diretoria")
@@ -773,16 +741,17 @@ try:
     st.plotly_chart(fig_tipo_dir, use_container_width=True)
     
     # Insight
-    top_combo = tipo_viagem_dir_top.iloc[0]
-    st.markdown(f"""
-        <div class="insight-box">
-        <b>🎯 Foco Principal:</b> A combinação "<b>{top_combo['Tipo de Viagem']}</b>" da diretoria "<b>{top_combo['Diretoria']}</b>" representa <b>{top_combo['Viagens']}</b> viagens.
-        <br>💡 Oportunidade: Otimizar processos e recursos para esta categoria de alta demanda.
-        </div>
-    """, unsafe_allow_html=True)
+    if len(tipo_viagem_dir_top) > 0:
+        top_combo = tipo_viagem_dir_top.iloc[0]
+        st.markdown(f"""
+            <div class="insight-box">
+            <b>🎯 Foco Principal:</b> A combinação "<b>{top_combo['Tipo de Viagem']}</b>" da diretoria "<b>{top_combo['Diretoria']}</b>" representa <b>{top_combo['Viagens']}</b> viagens.
+            <br>💡 Oportunidade: Otimizar processos e recursos para esta categoria de alta demanda.
+            </div>
+        """, unsafe_allow_html=True)
     
     # =============================================================================
-    # 💰 MATRIZ DE CUSTOS (TIPO DE VIAGEM x DIRETORIA)
+    # 💰 MATRIZ DE CUSTOS (TIPO DE VIAGEM x DIRETORIA) - CORRIGIDO
     # =============================================================================
     
     if 'Custo' in df_filtrado.columns:
@@ -796,7 +765,7 @@ try:
         
         fig_custo_matriz = px.scatter(
             custo_tipo_dir,
-            x='Tipo de Viagem',
+            x='Tipo_Viagem',
             y='Diretoria',
             size='Viagens',
             color='Custo_Medio',
@@ -809,14 +778,15 @@ try:
         st.plotly_chart(fig_custo_matriz, use_container_width=True)
         
         # Insight
-        combinacao_max = custo_tipo_dir.loc[custo_tipo_dir['Custo_Medio'].idxmax()]
-        
-        st.markdown(f"""
-            <div class="insight-box">
-            <b>💼 Combinação Mais Custosa:</b> Viagens do tipo "<b>{combinacao_max['Tipo_Viagem']}</b>" da diretoria "<b>{combinacao_max['Diretoria']}</b>" custam em média <b>R$ {combinacao_max['Custo_Medio']:,.0f}</b>.
-            <br>💡 Recomendação: Investigar fatores que elevam o custo (destinos, duração, especialização).
-            </div>
-        """, unsafe_allow_html=True)
+        if len(custo_tipo_dir) > 0:
+            combinacao_max = custo_tipo_dir.loc[custo_tipo_dir['Custo_Medio'].idxmax()]
+            
+            st.markdown(f"""
+                <div class="insight-box">
+                <b>💼 Combinação Mais Custosa:</b> Viagens do tipo "<b>{combinacao_max['Tipo_Viagem']}</b>" da diretoria "<b>{combinacao_max['Diretoria']}</b>" custam em média <b>R$ {combinacao_max['Custo_Medio']:,.0f}</b>.
+                <br>💡 Recomendação: Investigar fatores que elevam o custo (destinos, duração, especialização).
+                </div>
+            """, unsafe_allow_html=True)
     
     # =============================================================================
     # ANÁLISE POR DIRETORIA
