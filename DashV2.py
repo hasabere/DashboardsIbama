@@ -396,7 +396,7 @@ try:
         """, unsafe_allow_html=True)
     
     # =============================================================================
-    # MAPA MUNDI COM CHOROPLETH
+    # MAPA MUNDI COM CHOROPLETH - CORRIGIDO
     # =============================================================================
     
     st.header("🗺️ Mapa Mundi - Países Visitados")
@@ -434,10 +434,9 @@ try:
                 height=600,
                 hovermode='closest',
                 coloraxis_colorbar=dict(
-                    title="Número de<br>Viagens",
-                    titleside="right",
-                    tickmode="linear",
-                    tick0=0
+                    title="Número de Viagens",
+                    thickness=15,
+                    len=0.7
                 )
             )
             
