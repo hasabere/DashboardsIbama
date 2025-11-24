@@ -170,6 +170,10 @@ try:
     st.sidebar.header("🔧 Configurações de Processamento")
     debug_mode = st.sidebar.checkbox("Modo Debug (mostrar dados processados)")
     
+    # Mostrar colunas disponíveis em debug
+    if debug_mode:
+        st.sidebar.write("🔍 Colunas disponíveis:", df.columns.tolist())
+    
     # Filtrar viagens não canceladas
     df_original = df.copy()
     df = df[df['Cancelada?'] == 'Não']
@@ -243,14 +247,12 @@ try:
         st.sidebar.write("📊 Contagem:", df['País_Inglês'].value_counts())
     
     # =============================================================================
-    # TRATAMENTO DE OUTROS CAMPOS
+    # TRATAMENTO DE OUTROS CAMPOS - APENAS COLUNAS QUE EXISTEM
     # =============================================================================
     
     df['Diretoria'] = df['Diretoria'].fillna('Não Informado')
     df['Tipo de Viagem'] = df['Tipo de Viagem'].fillna('Não Informado')
     df['Gênero'] = df['Gênero'].fillna('Não Informado')
-    df['Evento'] = df['Evento'].fillna('Não Informado')
-    df['Organização Evento'] = df['Organização Evento'].fillna('Não Informado')
     df['Mês_Início'] = df['Início do Afastamento'].dt.month_name()
     df['Trimestre'] = 'T' + df['Início do Afastamento'].dt.quarter.astype(str)
     
@@ -688,7 +690,7 @@ try:
     st.plotly_chart(fig_diversity, use_container_width=True)
     
     # =============================================================================
-    # 🆕 NOVO GRÁFICO 1: DISTRIBUIÇÃO DE PLANEJAMENTO (ANTECEDÊNCIA)
+    # 📋 ANÁLISE DE PLANEJAMENTO (ANTECEDÊNCIA)
     # =============================================================================
     
     st.header("📋 Análise de Planejamento e Governança")
@@ -751,39 +753,36 @@ try:
     """, unsafe_allow_html=True)
     
     # =============================================================================
-    # 🆕 NOVO GRÁFICO 2: PRIORIDADES ESTRATÉGICAS (EVENTOS/ORGANIZAÇÕES)
+    # 🆕 GRÁFICO ROBUSTO: ANÁLISE POR TIPO DE VIAGEM (sem colunas inexistentes)
     # =============================================================================
     
-    st.subheader("🎯 Prioridades Estratégicas: Investimentos em Eventos")
+    st.subheader("🎯 Prioridades por Tipo de Viagem e Diretoria")
     
-    eventos_top = df_filtrado['Organização Evento'].value_counts().head(15).reset_index()
-    eventos_top.columns = ['Organização', 'Viagens']
+    tipo_viagem_dir = df_filtrado.groupby(['Tipo de Viagem', 'Diretoria']).size().reset_index(name='Viagens')
+    tipo_viagem_dir_top = tipo_viagem_dir[tipo_viagem_dir['Viagens'] >= 2].sort_values('Viagens', ascending=False).head(15)
     
-    fig_eventos = px.bar(
-        eventos_top,
+    fig_tipo_dir = px.bar(
+        tipo_viagem_dir_top,
         x='Viagens',
-        y='Organização',
+        y='Tipo de Viagem',
+        color='Diretoria',
         orientation='h',
-        color='Viagens',
-        color_continuous_scale='Blues',
-        title='Top 15 Organizações/Eventos com Maior Investimento',
+        title='Top 15 Combinações: Tipo de Viagem × Diretoria',
         labels={'Viagens': 'Número de Viagens'}
     )
-    st.plotly_chart(fig_eventos, use_container_width=True)
+    st.plotly_chart(fig_tipo_dir, use_container_width=True)
     
     # Insight
-    top_evento = eventos_top.iloc[0]
-    pct_top_evento = (top_evento['Viagens'] / total_viagens * 100) if total_viagens > 0 else 0
-    
+    top_combo = tipo_viagem_dir_top.iloc[0]
     st.markdown(f"""
         <div class="insight-box">
-        <b>📊 Foco Estratégico:</b> A organização "<b>{top_evento['Organização']}</b>" concentra <b>{pct_top_evento:.1f}%</b> de todas as viagens.
-        <br>💡 Oportunidade: Identificar se este foco é estratégico ou se representa concentração excessiva de recursos.
+        <b>🎯 Foco Principal:</b> A combinação "<b>{top_combo['Tipo de Viagem']}</b>" da diretoria "<b>{top_combo['Diretoria']}</b>" representa <b>{top_combo['Viagens']}</b> viagens.
+        <br>💡 Oportunidade: Otimizar processos e recursos para esta categoria de alta demanda.
         </div>
     """, unsafe_allow_html=True)
     
     # =============================================================================
-    # 🆕 NOVO GRÁFICO 3: MATRIZ DE CUSTO (TIPO DE VIAGEM x DIRETORIA)
+    # 💰 MATRIZ DE CUSTOS (TIPO DE VIAGEM x DIRETORIA)
     # =============================================================================
     
     if 'Custo' in df_filtrado.columns:
@@ -793,7 +792,7 @@ try:
             'Custo': ['mean', 'count']
         }).reset_index()
         custo_tipo_dir.columns = ['Tipo_Viagem', 'Diretoria', 'Custo_Medio', 'Viagens']
-        custo_tipo_dir = custo_tipo_dir[custo_tipo_dir['Viagens'] >= 2]  # Apenas com 2+ viagens
+        custo_tipo_dir = custo_tipo_dir[custo_tipo_dir['Viagens'] >= 2]
         
         fig_custo_matriz = px.scatter(
             custo_tipo_dir,
