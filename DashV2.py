@@ -352,7 +352,7 @@ try:
         """, unsafe_allow_html=True)
     
     # =============================================================================
-    # MÉTRICAS AVANÇADAS - REDUZIDAS
+    # MÉTRICAS AVANÇADAS
     # =============================================================================
     
     st.header("📈 Métricas Avançadas")
@@ -524,7 +524,7 @@ try:
             )
             
             st.plotly_chart(fig_scatter, use_container_width=True)
-        except:
+        except Exception:
             st.info("Gráfico de scatter indisponível")
         
         st.subheader("📋 Detalhes Completos por País")
@@ -583,7 +583,6 @@ try:
         st.plotly_chart(fig_genero_tipo, use_container_width=True)
     
     with col2:
-        # Percentual por gênero em cada tipo
         genero_tipo_pct = df_filtrado.groupby('Tipo de Viagem')['Gênero'].value_counts(normalize=True).unstack(fill_value=0) * 100
         
         fig_genero_tipo_pct = px.bar(
@@ -657,7 +656,248 @@ try:
         
         st.markdown(f"""
             <div class="alert-box">
-            <b>🚨 Achado Crítico:</b> Mulheres recebem <b>{'MENOS' if diff_pct > 0 else 'MAIS'} R$ {abs(diff_pct):.1f}%</b> em orçamento médio de viagem.
+            <b>🚨 Achado Crítico:</b> Mulheres recebem <b>{'MENOS' if diff_pct > 0 else 'MAIS'} {abs(diff_pct):.1f}%</b> em orçamento médio de viagem.
             <br>💡 Questão para investigação: É uma diferença de especialização ou de oportunidade desigual?
             </div>
         """, unsafe_allow_html=True)
+    
+    # =============================================================================
+    # 3. REPRESENTATIVIDADE POR DIRETORIA E GÊNERO
+    # =============================================================================
+    
+    st.subheader("🏢 Diversidade por Diretoria: Distribuição de Gênero")
+    
+    genero_diretoria = df_filtrado.groupby(['Diretoria', 'Gênero']).size().reset_index(name='Viagens')
+    genero_diretoria_pivot = genero_diretoria.pivot(index='Diretoria', columns='Gênero', values='Viagens').fillna(0)
+    
+    fig_diversity = px.bar(
+        genero_diretoria,
+        x='Diretoria',
+        y='Viagens',
+        color='Gênero',
+        barmode='stack',
+        title='Composição de Gênero por Diretoria',
+        color_discrete_map={'Masculino': '#0066CC', 'Feminino': '#FF6B9D', 'Não Informado': '#CCCCCC'}
+    )
+    st.plotly_chart(fig_diversity, use_container_width=True)
+    
+    # Heatmap de distribuição
+    fig_heatmap_div = px.imshow(
+        genero_diretoria_pivot,
+        labels=dict(x="Gênero", y="Diretoria", color="Viagens"),
+        title='Mapa de Calor: Representação de Gênero por Diretoria',
+        color_continuous_scale='RdYlGn',
+        text_auto=True,
+        height=500
+    )
+    st.plotly_chart(fig_heatmap_div, use_container_width=True)
+    
+    # =============================================================================
+    # 4. SAZONALIDADE POR GÊNERO: PADRÕES TEMPORAIS
+    # =============================================================================
+    
+    st.subheader("📅 Sazonalidade por Gênero: Quem viaja quando?")
+    
+    mes_genero = df_filtrado.groupby(['Mês_Início', 'Gênero']).size().reset_index(name='Viagens')
+    mes_genero['Mês_Início'] = pd.Categorical(
+        mes_genero['Mês_Início'], 
+        categories=meses_ordem, 
+        ordered=True
+    )
+    mes_genero = mes_genero.sort_values('Mês_Início')
+    
+    fig_sazonalidade = px.line(
+        mes_genero,
+        x='Mês_Início',
+        y='Viagens',
+        color='Gênero',
+        title='Padrão Temporal: Viagens por Mês e Gênero',
+        markers=True,
+        line_shape='spline',
+        color_discrete_map={'Masculino': '#0066CC', 'Feminino': '#FF6B9D', 'Não Informado': '#CCCCCC'}
+    )
+    st.plotly_chart(fig_sazonalidade, use_container_width=True)
+    
+    # =============================================================================
+    # 5. DISTRIBUIÇÃO GEOGRÁFICA: PAÍSES vs GÊNERO
+    # =============================================================================
+    
+    st.subheader("🌍 Acesso Geográfico: Quem viaja para onde?")
+    
+    pais_genero = df_com_pais.groupby(['País_Inglês', 'Gênero']).size().reset_index(name='Viagens')
+    pais_genero_top = pais_genero[pais_genero['País_Inglês'].isin(
+        df_com_pais['País_Inglês'].value_counts().head(10).index
+    )].sort_values('Viagens', ascending=False)
+    
+    fig_pais_genero = px.bar(
+        pais_genero_top,
+        x='País_Inglês',
+        y='Viagens',
+        color='Gênero',
+        barmode='stack',
+        title='Top 10 Países: Análise de Gênero',
+        color_discrete_map={'Masculino': '#0066CC', 'Feminino': '#FF6B9D', 'Não Informado': '#CCCCCC'}
+    )
+    st.plotly_chart(fig_pais_genero, use_container_width=True)
+    
+    # =============================================================================
+    # 6. DURAÇÃO E TIPO DE VIAGEM: VIAGENS CURTAS DESNECESSÁRIAS?
+    # =============================================================================
+    
+    st.subheader("⏱️ Análise de Eficiência: Duração de Viagens por Tipo")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        duracao_tipo_dist = df_filtrado.groupby('Tipo_Duracao').size().reset_index(name='Viagens')
+        duracao_tipo_dist = duracao_tipo_dist.sort_values('Viagens', ascending=True)
+        
+        fig_duracao_dist = px.bar(
+            duracao_tipo_dist,
+            x='Viagens',
+            y='Tipo_Duracao',
+            orientation='h',
+            color='Viagens',
+            color_continuous_scale='RdYlGn_r',
+            title='Distribuição: Quanto tempo duram as viagens?',
+            labels={'Tipo_Duracao': 'Duração da Viagem'}
+        )
+        st.plotly_chart(fig_duracao_dist, use_container_width=True)
+    
+    with col2:
+        duracao_tipo_detalhe = df_filtrado.groupby(['Tipo de Viagem', 'Tipo_Duracao']).size().reset_index(name='Viagens')
+        
+        fig_duracao_tipo = px.bar(
+            duracao_tipo_detalhe,
+            x='Tipo de Viagem',
+            y='Viagens',
+            color='Tipo_Duracao',
+            barmode='stack',
+            title='Composição de Duração por Tipo de Viagem'
+        )
+        st.plotly_chart(fig_duracao_tipo, use_container_width=True)
+    
+    # Insight
+    muito_curta = (df_filtrado['Tipo_Duracao'] == 'Muito Curta (≤5d)').sum()
+    pct_muito_curta = (muito_curta / len(df_filtrado) * 100) if len(df_filtrado) > 0 else 0
+    
+    st.markdown(f"""
+        <div class="alert-box">
+        <b>⚠️ Oportunidade de Otimização:</b> <b>{pct_muito_curta:.1f}%</b> das viagens duram 5 dias ou menos.
+        <br>💡 Questão: Estes afastamentos são necessários ou podem ser consolidados/realizados remotamente?
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # =============================================================================
+    # 7. MOBILIDADE PROFISSIONAL: FREQUÊNCIA DE VIAGENS POR SERVIDOR
+    # =============================================================================
+    
+    st.subheader("🔄 Mobilidade Profissional: Servidores Viajando Constantemente")
+    
+    mobilidade_servidor = df_filtrado['Servidor'].value_counts().reset_index()
+    mobilidade_servidor.columns = ['Servidor', 'Viagens']
+    mobilidade_servidor['Categoria'] = pd.cut(
+        mobilidade_servidor['Viagens'],
+        bins=[0, 1, 3, 6, 999],
+        labels=['Uma Viagem', '2-3 Viagens', '4-6 Viagens', '7+ Viagens']
+    )
+    
+    fig_mobilidade = px.pie(
+        mobilidade_servidor.groupby('Categoria').size().reset_index(name='Servidores'),
+        values='Servidores',
+        names='Categoria',
+        title='Padrão de Mobilidade: Como os Servidores Estão Distribuídos?',
+        color_discrete_sequence=['#90EE90', '#FFD700', '#FF8C00', '#FF4500']
+    )
+    st.plotly_chart(fig_mobilidade, use_container_width=True)
+    
+    # Insight - Burnout potencial
+    servidores_muito_viajam = (mobilidade_servidor['Viagens'] >= 6).sum()
+    pct_burnout = (servidores_muito_viajam / len(mobilidade_servidor) * 100) if len(mobilidade_servidor) > 0 else 0
+    
+    st.markdown(f"""
+        <div class="alert-box">
+        <b>🚩 Alerta de Bem-estar:</b> <b>{servidores_muito_viajam}</b> servidores ({pct_burnout:.1f}%) fizeram 6 ou mais viagens.
+        <br>💡 Recomendação: Investigar riscos de burnout e desequilíbrio trabalho-vida para estes colaboradores.
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # =============================================================================
+    # 8. ANÁLISE DE CUSTO-BENEFÍCIO POR PAÍS
+    # =============================================================================
+    
+    if 'Custo' in df_filtrado.columns:
+        st.subheader("💰 Eficiência de Investimento: Custo vs Retorno (Duração)")
+        
+        custo_pais = df_com_pais.groupby('País_Inglês').agg({
+            'Custo': 'mean',
+            'Duração (dias)': 'mean',
+            'Servidor': 'count'
+        }).reset_index()
+        custo_pais.columns = ['País', 'Custo_Medio', 'Duração_Media', 'Viagens']
+        custo_pais['Custo_Por_Dia'] = custo_pais['Custo_Medio'] / custo_pais['Duração_Media']
+        custo_pais = custo_pais.sort_values('Custo_Por_Dia', ascending=False).head(15)
+        
+        fig_eficiencia = px.scatter(
+            custo_pais,
+            x='Duração_Media',
+            y='Custo_Medio',
+            size='Viagens',
+            color='Custo_Por_Dia',
+            hover_name='País',
+            color_continuous_scale='RdYlGn_r',
+            title='Eficiência de Investimento: Custo Médio × Duração Média (Top 15 Países)<br><sub>Tamanho = número de viagens | Cor = Custo/dia</sub>',
+            labels={'Custo_Medio': 'Custo Médio (R$)', 'Duração_Media': 'Duração Média (dias)', 'Custo_Por_Dia': 'R$/dia'}
+        )
+        fig_eficiencia.update_layout(height=550)
+        st.plotly_chart(fig_eficiencia, use_container_width=True)
+    
+    # =============================================================================
+    # ANÁLISE POR DIRETORIA
+    # =============================================================================
+    
+    st.header("🏢 Análise de Recursos por Diretoria")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        viagens_diretoria = df_filtrado['Diretoria'].value_counts().reset_index()
+        viagens_diretoria.columns = ['Diretoria', 'Viagens']
+        
+        fig_diretoria = px.bar(
+            viagens_diretoria,
+            x='Diretoria',
+            y='Viagens',
+            title='Distribuição de Viagens por Diretoria',
+            color='Viagens',
+            color_continuous_scale='Blues'
+        )
+        st.plotly_chart(fig_diretoria, use_container_width=True)
+    
+    with col2:
+        duracao_diretoria = df_filtrado.groupby('Diretoria')['Duração (dias)'].mean().sort_values(ascending=False).reset_index()
+        duracao_diretoria.columns = ['Diretoria', 'Duração Média']
+        
+        fig_dur_dir = px.bar(
+            duracao_diretoria,
+            x='Diretoria',
+            y='Duração Média',
+            title='Duração Média de Afastamento por Diretoria',
+            color='Duração Média',
+            color_continuous_scale='Oranges'
+        )
+        st.plotly_chart(fig_dur_dir, use_container_width=True)
+    
+    # =============================================================================
+    # ANÁLISE DE TIPOS DE VIAGEM
+    # =============================================================================
+    
+    st.header("✈️ Análise de Tipos de Viagem")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        distrib_tipo = df_filtrado['Tipo de Viagem'].value_counts()
+        if not distrib_tipo.empty:
+            fig_tipo = px.pie(
+                values=distrib_tipo.values,
