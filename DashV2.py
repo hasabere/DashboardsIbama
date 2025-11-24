@@ -606,15 +606,7 @@ try:
         )
         st.plotly_chart(fig_genero_tipo_pct, use_container_width=True)
     
-    # Insight
-    pct_fem_total = (df_filtrado['Gênero'] == 'Feminino').sum() / len(df_filtrado) * 100 if len(df_filtrado) > 0 else 0
-    st.markdown(f"""
-        <div class="alert-box">
-        <b>⚠️ Alerta de Equidade:</b> Mulheres representam apenas <b>{pct_fem_total:.1f}%</b> das viagens registradas.
-        <br>📌 Recomendação: Analisar barreiras de acesso e oportunidades desiguais por gênero em cada tipo de viagem.
-        </div>
-    """, unsafe_allow_html=True)
-    
+   
     # =============================================================================
     # 2. DURAÇÃO MÉDIA POR GÊNERO (APENAS GRÁFICO)
     # =============================================================================
@@ -713,10 +705,10 @@ try:
     st.markdown(f"""
         <div class="alert-box">
         <b>🎯 Indicador de Governança:</b> 
-        <br>• <b>{pct_urgencia:.1f}%</b> em URGÊNCIA (0-15 dias) - Risco de decisões apressadas
+        <br>• <b>{pct_urgencia:.1f}%</b> em URGÊNCIA (0-15 dias)
         <br>• <b>{pct_aviso:.1f}%</b> com aviso prévio (15-30 dias)
         <br>• <b>{pct_bem:.1f}%</b> bem planejadas (30+ dias) - Ideal para gestão eficiente
-        <br>💡 Meta recomendada: Aumentar para 70-80% com planejamento antecipado
+        <br>💡 Aumentar para 70-80% com planejamento antecipado
         </div>
     """, unsafe_allow_html=True)
     
@@ -746,48 +738,10 @@ try:
         st.markdown(f"""
             <div class="insight-box">
             <b>🎯 Foco Principal:</b> A combinação "<b>{top_combo['Tipo de Viagem']}</b>" da diretoria "<b>{top_combo['Diretoria']}</b>" representa <b>{top_combo['Viagens']}</b> viagens.
-            <br>💡 Oportunidade: Otimizar processos e recursos para esta categoria de alta demanda.
+            <br>💡 Oportunidade: Otimizar processos para esta categoria de alta demanda.
             </div>
         """, unsafe_allow_html=True)
-    
-    # =============================================================================
-    # 💰 MATRIZ DE CUSTOS (TIPO DE VIAGEM x DIRETORIA) - CORRIGIDO
-    # =============================================================================
-    
-    if 'Custo' in df_filtrado.columns:
-        st.subheader("💰 Padrão de Custos: Tipo de Viagem × Diretoria")
-        
-        custo_tipo_dir = df_filtrado.groupby(['Tipo de Viagem', 'Diretoria']).agg({
-            'Custo': ['mean', 'count']
-        }).reset_index()
-        custo_tipo_dir.columns = ['Tipo_Viagem', 'Diretoria', 'Custo_Medio', 'Viagens']
-        custo_tipo_dir = custo_tipo_dir[custo_tipo_dir['Viagens'] >= 2]
-        
-        fig_custo_matriz = px.scatter(
-            custo_tipo_dir,
-            x='Tipo_Viagem',
-            y='Diretoria',
-            size='Viagens',
-            color='Custo_Medio',
-            color_continuous_scale='RdYlGn_r',
-            title='Matriz de Custos: Tipo de Viagem × Diretoria<br><sub>Tamanho = quantidade de viagens | Cor = custo médio</sub>',
-            hover_data={'Custo_Medio': ':.0f', 'Viagens': True},
-            labels={'Custo_Medio': 'Custo Médio (R$)'}
-        )
-        fig_custo_matriz.update_layout(height=550)
-        st.plotly_chart(fig_custo_matriz, use_container_width=True)
-        
-        # Insight
-        if len(custo_tipo_dir) > 0:
-            combinacao_max = custo_tipo_dir.loc[custo_tipo_dir['Custo_Medio'].idxmax()]
-            
-            st.markdown(f"""
-                <div class="insight-box">
-                <b>💼 Combinação Mais Custosa:</b> Viagens do tipo "<b>{combinacao_max['Tipo_Viagem']}</b>" da diretoria "<b>{combinacao_max['Diretoria']}</b>" custam em média <b>R$ {combinacao_max['Custo_Medio']:,.0f}</b>.
-                <br>💡 Recomendação: Investigar fatores que elevam o custo (destinos, duração, especialização).
-                </div>
-            """, unsafe_allow_html=True)
-    
+           
     # =============================================================================
     # ANÁLISE POR DIRETORIA
     # =============================================================================
